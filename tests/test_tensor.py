@@ -206,3 +206,74 @@ def test_scalar_operand_backward():
     y = Tensor(4.0, requires_grad=True)
     (1 / y).backward()
     assert y.grad == pytest.approx(-1.0 / 16.0)
+
+
+# ------------------------------------------------------------------------ pow
+# Contract: Tensor ** k where k is a Python int or float constant (not a
+# Tensor). The exponent receives no gradient.
+# d(x**k)/dx = k * x**(k - 1), multiplied by the upstream gradient.
+
+def test_pow_forward_integer_exponent():
+    out = Tensor([[1.0, -2.0], [3.0, 4.0]]) ** 2
+    assert isinstance(out, Tensor)
+    np.testing.assert_allclose(out.data, [[1.0, 4.0], [9.0, 16.0]])
+
+
+def test_pow_forward_fractional_and_negative_exponent():
+    x = Tensor([4.0, 9.0])
+    np.testing.assert_allclose((x ** 0.5).data, [2.0, 3.0])
+    np.testing.assert_allclose((x ** -1).data, [0.25, 1.0 / 9.0])
+
+
+def test_pow_does_not_mutate_input():
+    x = Tensor([1.0, 2.0, 3.0], requires_grad=True)
+    _ = x ** 3
+    np.testing.assert_array_equal(x.data, [1.0, 2.0, 3.0])
+
+
+def test_pow_requires_grad_propagation():
+    assert (Tensor(2.0, requires_grad=True) ** 2).requires_grad is True
+    assert (Tensor(2.0) ** 2).requires_grad is False
+
+
+def test_pow_records_parent():
+    x = Tensor(2.0, requires_grad=True)
+    out = x ** 2
+    assert len(out.parents) == 1
+    assert out.parents[0] is x
+
+
+def test_backward_pow_square():
+    x = Tensor(3.0, requires_grad=True)
+    (x ** 2).backward()
+    assert x.grad == pytest.approx(6.0)
+
+
+@pytest.mark.parametrize("x0, k", [(2.0, 3), (4.0, 0.5), (2.0, -1), (5.0, 0)])
+def test_backward_pow_matches_formula(x0, k):
+    x = Tensor(x0, requires_grad=True)
+    (x ** k).backward()
+    assert x.grad == pytest.approx(k * x0 ** (k - 1))
+
+
+def test_backward_pow_uses_upstream_gradient():
+    # f = 3 * x**2  ->  df/dx = 6x
+    x = Tensor(2.0, requires_grad=True)
+    (3 * (x ** 2)).backward()
+    assert x.grad == pytest.approx(12.0)
+
+
+def test_backward_pow_in_chain():
+    # f = (x**2 + x) * x**3 = x^5 + x^4  ->  df/dx = 5x^4 + 4x^3
+    x = Tensor(2.0, requires_grad=True)
+    f = ((x ** 2) + x) * (x ** 3)
+    f.backward()
+    assert x.grad == pytest.approx(5 * 16 + 4 * 8)
+
+
+def test_backward_pow_several_scalar_inputs():
+    # sum() does not exist yet, so reduce by hand with scalar Tensors.
+    xs = [Tensor(v, requires_grad=True) for v in (1.0, 2.0, 3.0)]
+    total = (xs[0] ** 2) + (xs[1] ** 2) + (xs[2] ** 2)
+    total.backward()
+    assert [x.grad for x in xs] == pytest.approx([2.0, 4.0, 6.0])

@@ -1,9 +1,9 @@
 # Roadmap
 
 ## Layer 1: Autograd (NumPy)
-- [ ] Tensor/Value class holding data and grad
-- [ ] Forward ops: add, mul, pow, neg, sub, div
-- [ ] Backward pass with topological ordering
+- [x] Tensor/Value class holding data and grad
+- [x] Forward ops: add, mul, pow, neg, sub, div
+- [x] Backward pass with topological ordering
 - [ ] Broadcasting-aware gradients
 - [ ] Matmul, sum, mean, reshape, transpose
 - [ ] Activations: relu, tanh, exp, log
